@@ -26,5 +26,14 @@ jobs:
         with:
           flutter-version: '3.35.5'   # <-- change to your required version
 
+      - name: Clean
+        run: flutter clean
+
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Android APK Build
+        run: flutter build apk --release
+        
+      - name: Android App Bundle Build
+        run: flutter build appbundle --release

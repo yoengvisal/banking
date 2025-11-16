@@ -15,16 +15,42 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up JDK 11
+      - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '17'
+      - name: Verify Java version
+        run: java -version
 
-      - name: Install Flutter (specific version)
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.5'   # <-- change to your required version
+          flutter-version: '3.35.5'
+
+      # --- RESTORE KEYSTORE FROM BASE64 ---
+      # Keystore is saved in the 'android/app' folder with the correct name.
+      - name: Decode Keystore (upload-keystore.jks)
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+
+      # --- CREATE key.properties ---
+      - name: Create key.properties
+        run: |
+          # storeFile value is the filename, as it is relative to the android/app directory.
+          echo "storeFile=upload-keystore.jks" >> android/key.properties
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+
+      - name: Clean
+        run: flutter clean
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Android APK Build
+        run: flutter build apk --release
+
+      - name: Android App Bundle Build
+        run: flutter build appbundle --release

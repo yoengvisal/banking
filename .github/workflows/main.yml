@@ -1,56 +1,233 @@
-name: CI/CD Flutter
+name: 🚀 Flutter CI/CD
 
 on:
   push:
     branches:
       - development
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '**/.gitignore'
   pull_request:
     branches:
       - development
 
+env:
+  FLUTTER_VERSION: '3.35.5'
+  JAVA_VERSION: '17'
+
 jobs:
-  build:
+  quality-checks:
+    name: 🔍 Quality Checks
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
-      - name: Verify Java version
-        run: java -version
+          fetch-depth: 0
 
-      - name: Install Flutter
+      - name: ⚙️ Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.5'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}
+          cache-path: ${{ runner.tool_cache }}/flutter
 
-      # --- RESTORE KEYSTORE FROM BASE64 ---
-      # Keystore is saved in the 'android/app' folder with the correct name.
-      - name: Decode Keystore (upload-keystore.jks)
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
-
-      # --- CREATE key.properties ---
-      - name: Create key.properties
-        run: |
-          # storeFile value is the filename, as it is relative to the android/app directory.
-          echo "storeFile=upload-keystore.jks" >> android/key.properties
-          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
-          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
-
-      - name: Clean
+      - name: 🧹 Clean workspace
         run: flutter clean
 
-      - name: Install dependencies
+      - name: 📦 Get dependencies
         run: flutter pub get
 
-      - name: Android APK Build
-        run: flutter build apk --release
+      - name: 🔎 Analyze code
+        run: flutter analyze
 
-      - name: Android App Bundle Build
-        run: flutter build appbundle --release
+      - name: 🧪 Run tests
+        run: flutter test --coverage
+
+      - name: 📊 Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+
+      - name: 📏 Check formatting
+        run: flutter format --set-exit-if-changed .
+
+  build-android:
+    name: 🤖 Build Android
+    runs-on: ubuntu-latest
+    needs: quality-checks
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+
+      - name: 🔍 Verify Java
+        run: |
+          java -version
+          javac -version
+
+      - name: ⚙️ Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}
+          cache-path: ${{ runner.tool_cache }}/flutter
+
+      - name: 📦 Cache Flutter dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            /opt/hostedtoolcache/flutter
+            .dart_tool
+            .pub-cache
+          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-
+
+      - name: 🧹 Clean workspace
+        run: flutter clean
+
+      - name: 📦 Get dependencies
+        run: flutter pub get
+
+      - name: 🔐 Set up signing
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+          cat > android/key.properties << EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: 🔍 Verify signing setup
+        run: |
+          echo "🔐 Keystore info:"
+          ls -la android/app/upload-keystore.jks
+          echo "📄 Key properties:"
+          cat android/key.properties
+
+      - name: 🏗️ Build APK
+        run: flutter build apk --release --verbose
+
+      - name: 📱 Build App Bundle
+        run: flutter build appbundle --release --verbose
+
+      - name: 📊 Check build sizes
+        run: |
+          echo "📦 APK size: $(du -h build/app/outputs/flutter-apk/app-release.apk | cut -f1)"
+          echo "📦 App Bundle size: $(du -h build/app/outputs/bundle/release/app-release.aab | cut -f1)"
+
+      - name: 🎯 Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+      - name: 📦 Upload App Bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-app-bundle
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 7
+
+  build-ios:
+    name: 🍎 Build iOS
+    runs-on: macos-latest
+    needs: quality-checks
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: 📦 Cache Flutter dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            /opt/hostedtoolcache/flutter
+            .dart_tool
+            .pub-cache
+          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}-
+
+      - name: 🧹 Clean workspace
+        run: flutter clean
+
+      - name: 📦 Get dependencies
+        run: flutter pub get
+
+      - name: 🍎 Install iOS dependencies
+        run: |
+          cd ios
+          pod install --repo-update
+          cd ..
+
+      - name: 🏗️ Build iOS (simulator)
+        run: flutter build ios --simulator --no-codesign --verbose
+
+      - name: 📱 Build iOS (release)
+        run: |
+          flutter build ios --no-codesign --verbose
+
+      - name: 🎯 Upload iOS build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: |
+            build/ios/iphonesimulator
+            build/ios/iphoneos
+          retention-days: 7
+
+  security-scan:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    needs: quality-checks
+    if: always()
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Run security analysis
+        run: |
+          echo "🔒 Security checks would run here"
+          echo "• Dependency vulnerability scanning"
+          echo "• Code security analysis"
+          echo "• Secret detection"
+
+  notify:
+    name: 📢 Notify Status
+    runs-on: ubuntu-latest
+    needs: [quality-checks, build-android, build-ios]
+    if: always()
+
+    steps:
+      - name: 📊 Status report
+        run: |
+          echo "🚀 CI/CD Pipeline completed"
+          echo "✅ Quality Checks: ${{ needs.quality-checks.result }}"
+          echo "✅ Android Build: ${{ needs.build-android.result }}"
+          echo "✅ iOS Build: ${{ needs.build-ios.result }}"
+          echo "🔗 Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

@@ -1,5 +1,6 @@
 import 'package:banking/providers/interceptor.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiProvider {
   late final Dio _dio;
@@ -90,10 +91,14 @@ class ApiProvider {
 
   void _handleError(DioException e) {
     if (e.response != null) {
-      print('Error Response data: ${e.response?.data}');
-      print('Error Response status: ${e.response?.statusCode}');
+      if (kDebugMode) {
+        print('Error Response data: ${e.response?.data}');
+        print('Error Response status: ${e.response?.statusCode}');
+      }
     } else {
-      print('Error without response: ${e.message}');
+      if (kDebugMode) {
+        print('Error without response: ${e.message}');
+      }
     }
   }
 

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 class AppInterceptor extends Interceptor {
   final Map<String, dynamic> _defaultHeaders = {
@@ -11,7 +12,9 @@ class AppInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     // You can modify the request here (e.g., add headers)
-    print('Request[${options.method}] => PATH: ${options.path}');
+    if (kDebugMode) {
+      print('Request[${options.method}] => PATH: ${options.path}');
+    }
     options.headers.addAll(_defaultHeaders);
     if (_authToken != null) {
       options.headers['Authorization'] = 'Bearer $_authToken';
@@ -22,18 +25,22 @@ class AppInterceptor extends Interceptor {
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
     // You can process the response here
-    print(
+    if (kDebugMode) {
+      print(
       'Response[${response.statusCode}] => PATH: ${response.requestOptions.path}',
     );
+    }
     super.onResponse(response, handler);
   }
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     // You can handle errors here
-    print(
+    if (kDebugMode) {
+      print(
       'Error[${err.response?.statusCode}] => PATH: ${err.requestOptions.path}',
     );
+    }
     super.onError(err, handler);
   }
 

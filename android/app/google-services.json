@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:703004067887:android:444d7065b161e8e86d1eda",
+        "mobilesdk_app_id": "1:703004067887:android:460df65d31de90116d1eda",
         "android_client_info": {
-          "package_name": "com.example.banking"
+          "package_name": "com.visal.testapp.banking"
         }
       },
       "oauth_client": [],

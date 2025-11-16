@@ -5,7 +5,6 @@
 import FlutterMacOS
 import Foundation
 
-import encrypt_decrypt_plus
 import firebase_auth
 import firebase_core
 import firebase_messaging
@@ -15,7 +14,6 @@ import path_provider_foundation
 import shared_preferences_foundation
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
-  EncryptDecryptPlusPlugin.register(with: registry.registrar(forPlugin: "EncryptDecryptPlusPlugin"))
   FLTFirebaseAuthPlugin.register(with: registry.registrar(forPlugin: "FLTFirebaseAuthPlugin"))
   FLTFirebaseCorePlugin.register(with: registry.registrar(forPlugin: "FLTFirebaseCorePlugin"))
   FLTFirebaseMessagingPlugin.register(with: registry.registrar(forPlugin: "FLTFirebaseMessagingPlugin"))
